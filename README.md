@@ -14,7 +14,9 @@ Makro keyboard dengan UI untuk Seal Offline: susun urutan tombol & delay, tambah
 
 ## Cara Pakai
 
-Double-click `run.bat`. Dependensi (`keyboard`, `pynput`) terpasang otomatis saat pertama kali dijalankan.
+**Tanpa Python:** jalankan `MacroSeal.exe`. Profil tersimpan di `profiles.json` di folder yang sama dengan `.exe`.
+
+**Dengan Python:** double-click `run.bat`. Dependensi (`keyboard`, `pynput`) terpasang otomatis saat pertama kali dijalankan.
 
 Atau manual:
 
@@ -24,3 +26,7 @@ python script.py
 ```
 
 Jalankan sebagai Administrator jika tombol tidak terbaca di dalam game.
+
+## Build .exe
+
+Double-click `build.bat`. Hasilnya di `dist\MacroSeal.exe`.

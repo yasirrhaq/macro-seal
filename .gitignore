@@ -3,3 +3,6 @@ __pycache__/
 profiles.json
 profiles.json.bak
 profiles.json.tmp
+build/
+dist/
+*.spec
