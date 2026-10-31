@@ -14,6 +14,10 @@ Makro keyboard dengan UI untuk Seal Offline: susun urutan tombol & delay, tambah
 
 ## Cara Pakai
 
+Double-click `run.bat`. Dependensi (`keyboard`, `pynput`) terpasang otomatis saat pertama kali dijalankan.
+
+Atau manual:
+
 ```
 pip install keyboard pynput
 python script.py
