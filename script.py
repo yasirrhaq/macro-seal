@@ -1,3 +1,4 @@
+import ctypes
 import json
 import os
 import sys
@@ -9,6 +10,12 @@ import keyboard
 from pynput.keyboard import Controller, Key
 
 keyboard_controller = Controller()
+
+# Hotkey global dibaca lewat GetAsyncKeyState (status tombol fisik), bukan hook
+# library keyboard, agar tetap terbaca saat jendela game yang aktif
+VK_F11 = 0x7A  # Start / Stop
+VK_F12 = 0x7B  # Stop darurat
+START_COUNTDOWN = 3  # Detik untuk pindah ke game setelah klik START
 
 # Variabel global
 is_running = False
@@ -73,10 +80,41 @@ def press_key(val):
   keyboard_controller.release(key_to_press)
 
 
-def run_macro(loop_pause, buffs):
+def is_key_down(vk):
+  return bool(ctypes.windll.user32.GetAsyncKeyState(vk) & 0x8000)
+
+
+def hotkey_watcher():
+  # Deteksi tepi (baru ditekan) agar tahan-tombol tidak memicu berulang
+  prev = {VK_F11: False, VK_F12: False}
+  while True:
+    for vk in prev:
+      down = is_key_down(vk)
+      if down and not prev[vk]:
+        if vk == VK_F11:
+          root.after(0, toggle_macro)
+        else:
+          stop_macro()
+      prev[vk] = down
+    time.sleep(0.03)
+
+
+def run_macro(loop_pause, buffs, countdown):
   global is_running
   print("=== SCRIPT AUTO HUNT DIMULAI DARI UI ===")
   error_msg = None
+
+  # Beri waktu pindah ke jendela game sebelum tombol pertama dikirim
+  for sisa in range(countdown, 0, -1):
+    if not is_running:
+      break
+    root.after(
+        0,
+        lambda n=sisa: lbl_status.config(
+            text=f"● Mulai dalam {n}...  Pindah ke game sekarang!", fg=C_WARN
+        ),
+    )
+    time.sleep(1)
   # Waktu jatuh tempo tiap buff; 0 = langsung dipakai saat START
   buff_due = [0.0] * len(buffs)
 
@@ -89,7 +127,7 @@ def run_macro(loop_pause, buffs):
         buff_due[i] = time.monotonic() + buff["interval"] * 60
 
   def status_text(n):
-    text = f"● BERJALAN — siklus ke-{n}  (F12 untuk stop)"
+    text = f"● BERJALAN — siklus ke-{n}  (F11/F12 untuk stop)"
     if buffs:
       i = min(range(len(buffs)), key=lambda j: buff_due[j])
       sisa = max(0, int(buff_due[i] - time.monotonic()))
@@ -98,15 +136,11 @@ def run_macro(loop_pause, buffs):
 
   try:
     loop_counter = 1
+    # F11/F12 ditangani hotkey_watcher dengan mengubah is_running
     while is_running:
-      # Cek tombol F12 darurat di keyboard
-      if keyboard.is_pressed("f12"):
-        print("\n[!] Dihentikan via tombol F12.")
-        break
-
       # Salinan list agar aman jika sequence diedit saat berjalan
       for item in list(sequence_list):
-        if not is_running or keyboard.is_pressed("f12"):
+        if not is_running:
           break
 
         # Buff disisipkan di antara aksi agar tidak bentrok dengan sequence
@@ -151,9 +185,10 @@ def on_macro_stopped(error_msg=None):
   root.after(100, lambda: root.attributes("-topmost", False))
 
 
-def start_macro():
+def start_macro(countdown=START_COUNTDOWN):
   global is_running, macro_thread
-  if is_running:
+  # Tunggu thread lama benar-benar selesai agar tidak ada dua makro berjalan
+  if is_running or (macro_thread and macro_thread.is_alive()):
     return
 
   if len(sequence_list) == 0:
@@ -175,11 +210,13 @@ def start_macro():
   is_running = True
   btn_start.config(state=tk.DISABLED, bg=C_DISABLED)
   btn_stop.config(state=tk.NORMAL, bg=C_DANGER)
-  lbl_status.config(text="● BERJALAN  (F12 untuk stop)", fg=C_SUCCESS)
+  lbl_status.config(text="● BERJALAN  (F11/F12 untuk stop)", fg=C_SUCCESS)
 
   macro_thread = threading.Thread(
       # Salinan buff: perubahan daftar buff berlaku saat START berikutnya
-      target=run_macro, args=(loop_pause, [dict(b) for b in buff_list]), daemon=True
+      target=run_macro,
+      args=(loop_pause, [dict(b) for b in buff_list], countdown),
+      daemon=True,
   )
   macro_thread.start()
 
@@ -187,6 +224,14 @@ def start_macro():
 def stop_macro():
   global is_running
   is_running = False
+
+
+def toggle_macro():
+  # Dari hotkey: jendela game sudah aktif, jadi tanpa hitung mundur
+  if is_running:
+    stop_macro()
+  else:
+    start_macro(countdown=0)
 
 
 # --- PRESET MAKRO OTOMATIS ---
@@ -389,10 +434,12 @@ def on_key_recorded(key_name, entry, btn):
   entry.insert(0, key_name)
   btn.config(text="⌨ Rekam", bg=C_INFO)
   is_recording = False
-  if key_name == "f12" and entry is entry_val:
-    lbl_hint.config(text="⚠ F12 dipakai untuk stop makro!", fg=C_DANGER)
-  elif key_name == "f12":
-    messagebox.showwarning("Peringatan", "F12 dipakai untuk stop makro!")
+  if key_name in ("f11", "f12") and entry is entry_val:
+    lbl_hint.config(text=f"⚠ {key_name.upper()} dipakai sebagai hotkey makro!", fg=C_DANGER)
+  elif key_name in ("f11", "f12"):
+    messagebox.showwarning(
+        "Peringatan", f"{key_name.upper()} dipakai sebagai hotkey makro!"
+    )
   entry.focus_set()
 
 
@@ -674,7 +721,7 @@ tk.Label(
 ).pack(pady=(12, 0))
 tk.Label(
     root,
-    text="Tekan F12 untuk menghentikan makro secara darurat",
+    text="F11 = Start/Stop dari dalam game  •  F12 = Stop darurat",
     font=("Segoe UI", 9),
     bg=BG_COLOR,
     fg=FG_MUTED,
@@ -993,7 +1040,7 @@ frame_btn = tk.Frame(frame_setting, bg=BG_COLOR)
 frame_btn.pack(fill="x")
 frame_btn.columnconfigure((0, 1), weight=1)
 
-btn_start = make_button(frame_btn, "▶ START", C_SUCCESS, start_macro)
+btn_start = make_button(frame_btn, "▶ START (F11)", C_SUCCESS, start_macro)
 btn_start.config(font=("Segoe UI", 10, "bold"), pady=6)
 btn_start.grid(row=0, column=0, sticky="we", padx=(0, 4))
 
@@ -1002,4 +1049,5 @@ btn_stop.config(font=("Segoe UI", 10, "bold"), pady=6)
 btn_stop.grid(row=0, column=1, sticky="we", padx=(4, 0))
 
 entry_val.focus_set()
+threading.Thread(target=hotkey_watcher, daemon=True).start()
 root.mainloop()

@@ -10,7 +10,8 @@ Makro keyboard dengan UI untuk Seal Offline: susun urutan tombol & delay, tambah
 - Rekam tombol langsung dari keyboard.
 - Buff otomatis: tombol yang ditekan tiap N menit di sela sequence.
 - Preset bawaan dan profil sendiri (disimpan di `profiles.json`).
-- Tekan **F12** untuk menghentikan makro secara darurat.
+- **F11** = Start/Stop langsung dari dalam game, **F12** = stop darurat.
+- Klik START memberi hitung mundur 3 detik untuk pindah ke jendela game.
 
 ## Cara Pakai
 
