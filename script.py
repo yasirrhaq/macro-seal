@@ -305,6 +305,14 @@ def save_profile():
     messagebox.showerror("Error", "Sequence masih kosong, tidak ada yang disimpan.")
     return
 
+  # Buff yang sudah diketik tapi belum diklik "+" tidak ikut tersimpan
+  if entry_buff_key.get().strip() and messagebox.askyesno(
+      "Buff Belum Ditambahkan",
+      f"Buff '{entry_buff_key.get().strip()}' belum ditambahkan ke daftar.\n"
+      "Tambahkan sekarang sebelum menyimpan?",
+  ):
+    add_buff()
+
   name = simpledialog.askstring(
       "Simpan Profil",
       "Nama profil:",
@@ -349,14 +357,14 @@ def load_profile():
         if item["type"] in ("Tombol", "Delay")
     ]
     pause = str(data.get("pause", "0.5"))
-    # Profil lama tanpa "buffs" tetap bisa dimuat
-    buffs = [
+    # Profil lama tanpa "buffs": daftar buff yang sekarang dibiarkan
+    buffs = None if "buffs" not in data else [
         {
             "key": str(b["key"]),
             "interval": float(b["interval"]),
             "delay": float(b["delay"]),
         }
-        for b in data.get("buffs", [])
+        for b in data["buffs"]
     ]
   except (KeyError, TypeError, ValueError):
     messagebox.showerror("Error", f"Data profil '{name}' rusak.")
@@ -368,10 +376,11 @@ def load_profile():
   entry_pause.delete(0, tk.END)
   entry_pause.insert(0, pause)
   update_listbox()
-  if editing_buff is not None:
-    cancel_buff_edit()
-  buff_list[:] = buffs
-  update_buff_listbox()
+  if buffs is not None:
+    if editing_buff is not None:
+      cancel_buff_edit()
+    buff_list[:] = buffs
+    update_buff_listbox()
 
 
 def delete_profile():
