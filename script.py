@@ -718,7 +718,7 @@ def make_button(parent, text, bg, command, **kwargs):
 # --- TAMPILAN UI ---
 root = tk.Tk()
 root.title("Seal Offline - Modern Macro Builder")
-root.minsize(460, 700)
+root.minsize(460, 360)
 root.config(bg=BG_COLOR)
 
 tk.Label(
@@ -736,9 +736,54 @@ tk.Label(
     fg=FG_MUTED,
 ).pack(pady=(0, 6))
 
+# Area tengah bisa di-scroll agar START/STOP tetap terlihat di layar kecil
+frame_scroll_outer = tk.Frame(root, bg=BG_COLOR)
+frame_scroll_outer.pack(fill="both", expand=True)
+canvas_main = tk.Canvas(frame_scroll_outer, bg=BG_COLOR, highlightthickness=0)
+scroll_main = ttk.Scrollbar(
+    frame_scroll_outer, orient="vertical", command=canvas_main.yview
+)
+canvas_main.pack(side=tk.LEFT, fill="both", expand=True)
+content = tk.Frame(canvas_main, bg=BG_COLOR)
+content_id = canvas_main.create_window((0, 0), window=content, anchor="nw")
+
+
+def set_main_scroll(first, last):
+  # Scrollbar hanya muncul jika konten lebih tinggi dari jendela
+  if float(first) <= 0 and float(last) >= 1:
+    scroll_main.pack_forget()
+  else:
+    scroll_main.pack(side=tk.RIGHT, fill="y", before=canvas_main)
+  scroll_main.set(first, last)
+
+
+def on_canvas_resize(event=None):
+  # Konten selebar canvas, dan setinggi canvas jika muat (list bisa melebar)
+  canvas_main.itemconfigure(
+      content_id,
+      width=canvas_main.winfo_width(),
+      height=max(canvas_main.winfo_height(), content.winfo_reqheight()),
+  )
+  canvas_main.configure(scrollregion=canvas_main.bbox("all"))
+
+
+def on_mousewheel(event):
+  # Listbox punya scroll sendiri; selain itu scroll area utama
+  widget = event.widget
+  if isinstance(widget, tk.Listbox) or not isinstance(widget, tk.Misc):
+    return
+  if content.winfo_reqheight() > canvas_main.winfo_height():
+    canvas_main.yview_scroll(int(-event.delta / 120), "units")
+
+
+canvas_main.configure(yscrollcommand=set_main_scroll)
+canvas_main.bind("<Configure>", on_canvas_resize)
+content.bind("<Configure>", on_canvas_resize)
+root.bind_all("<MouseWheel>", on_mousewheel)
+
 # Preset Cepat
 frame_preset = tk.LabelFrame(
-    root,
+    content,
     text=" ⚡ Preset & Profil ",
     font=("Segoe UI", 10, "bold"),
     bg=BG_COLOR,
@@ -787,7 +832,7 @@ refresh_profile_combo()
 
 # Tambah Aksi Manual
 frame_builder = tk.LabelFrame(
-    root,
+    content,
     text=" 1. Tambah Aksi Manual ",
     font=("Segoe UI", 10, "bold"),
     bg=BG_COLOR,
@@ -845,7 +890,7 @@ btn_cancel = make_button(frame_add_row, "Batal (Esc)", C_NEUTRAL, cancel_edit)
 
 # Urutan Makro
 frame_list = tk.LabelFrame(
-    root,
+    content,
     text=" 2. Urutan Makro  (Ctrl/Shift + klik = pilih banyak) ",
     font=("Segoe UI", 10, "bold"),
     bg=BG_COLOR,
@@ -912,7 +957,7 @@ lbl_count.pack(side=tk.RIGHT)
 
 # Buff Otomatis (di luar sequence, dipicu per interval)
 frame_buff = tk.LabelFrame(
-    root,
+    content,
     text=" 🛡 Buff Otomatis (tiap N menit) ",
     font=("Segoe UI", 10, "bold"),
     bg=BG_COLOR,
@@ -1022,7 +1067,10 @@ frame_setting = tk.LabelFrame(
     padx=10,
     pady=8,
 )
-frame_setting.pack(pady=5, padx=15, fill="x")
+# Dipack sebelum area scroll agar selalu kebagian tempat saat jendela pendek
+frame_setting.pack(
+    side=tk.BOTTOM, pady=5, padx=15, fill="x", before=frame_scroll_outer
+)
 
 frame_pause = tk.Frame(frame_setting, bg=BG_COLOR)
 frame_pause.pack(fill="x")
@@ -1058,5 +1106,17 @@ btn_stop.config(font=("Segoe UI", 10, "bold"), pady=6)
 btn_stop.grid(row=0, column=1, sticky="we", padx=(4, 0))
 
 entry_val.focus_set()
+# Tinggi awal: seluruh konten, tapi tidak melebihi layar (sisakan taskbar)
+root.update_idletasks()
+# Canvas tidak otomatis selebar isinya, jadi lebarnya diset manual
+canvas_main.configure(width=content.winfo_reqwidth())
+root.update_idletasks()
+full_height = (
+    root.winfo_reqheight() - canvas_main.winfo_reqheight() + content.winfo_reqheight()
+)
+root.geometry(
+    f"{root.winfo_reqwidth()}x{min(full_height, root.winfo_screenheight() - 80)}+20+10"
+)
+
 threading.Thread(target=hotkey_watcher, daemon=True).start()
 root.mainloop()
